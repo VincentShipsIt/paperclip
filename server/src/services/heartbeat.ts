@@ -465,6 +465,7 @@ export function buildExplicitResumeSessionOverride(input: {
   resumeRunSessionIdAfter: string | null;
   taskSession: ResumeSessionRow | null;
   sessionCodec: AdapterSessionCodec;
+  allowFallbackToRunSessionId?: boolean;
 }) {
   const desiredDisplayId = truncateDisplayId(
     input.resumeRunSessionIdAfter ?? input.resumeRunSessionIdBefore,
@@ -483,13 +484,16 @@ export function buildExplicitResumeSessionOverride(input: {
       input.taskSession.lastRunId === input.resumeFromRunId ||
       (!!desiredDisplayId && taskSessionDisplayId === desiredDisplayId)
     );
+  const allowFallbackToRunSessionId = input.allowFallbackToRunSessionId !== false;
   const sessionParams =
     canReuseTaskSessionParams
       ? taskSessionParams
-      : desiredDisplayId
+      : allowFallbackToRunSessionId && desiredDisplayId
         ? { sessionId: desiredDisplayId }
         : null;
-  const sessionDisplayId = desiredDisplayId ?? (canReuseTaskSessionParams ? taskSessionDisplayId : null);
+  const sessionDisplayId =
+    (allowFallbackToRunSessionId ? desiredDisplayId : null) ??
+    (canReuseTaskSessionParams ? taskSessionDisplayId : null);
 
   if (!sessionDisplayId && !sessionParams) return null;
   return {
@@ -1235,6 +1239,7 @@ export function heartbeatService(db: Db) {
     agent: typeof agents.$inferSelect,
     payload: Record<string, unknown> | null,
     taskKey: string | null,
+    wakeReason?: string | null,
   ) {
     const resumeFromRunId = readNonEmptyString(payload?.resumeFromRunId);
     if (!resumeFromRunId) return null;
@@ -1269,6 +1274,11 @@ export function heartbeatService(db: Db) {
       resumeRunSessionIdAfter: resumeRun.sessionIdAfter,
       taskSession: resumeTaskSession,
       sessionCodec,
+      // For process-loss recovery we only trust persisted task-session metadata
+      // that still matches the selected run/session. Falling back to the failed
+      // run's raw session id can re-trigger the same stale-thread resume error;
+      // if no matching task session exists, degrade gracefully into a fresh run.
+      allowFallbackToRunSessionId: wakeReason !== "resume_process_lost_run",
     });
     if (!sessionOverride) return null;
 
@@ -3430,7 +3440,7 @@ export function heartbeatService(db: Db) {
 
     const agent = await getAgent(agentId);
     if (!agent) throw notFound("Agent not found");
-    const explicitResumeSession = await resolveExplicitResumeSessionOverride(agent, payload, taskKey);
+    const explicitResumeSession = await resolveExplicitResumeSessionOverride(agent, payload, taskKey, reason);
     if (explicitResumeSession) {
       enrichedContextSnapshot.resumeFromRunId = explicitResumeSession.resumeFromRunId;
       enrichedContextSnapshot.resumeSessionDisplayId = explicitResumeSession.sessionDisplayId;

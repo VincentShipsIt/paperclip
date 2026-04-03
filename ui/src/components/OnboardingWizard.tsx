@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AdapterEnvironmentTestResult } from "@paperclipai/shared";
+import { Dialog as DialogPrimitive } from "radix-ui";
 import { useLocation, useNavigate, useParams } from "@/lib/router";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
@@ -10,7 +11,12 @@ import { agentsApi } from "../api/agents";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
 import { queryKeys } from "../lib/queryKeys";
-import { Dialog, DialogPortal } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogDescription,
+  DialogPortal,
+  DialogTitle
+} from "@/components/ui/dialog";
 import {
   Popover,
   PopoverContent,
@@ -23,7 +29,10 @@ import {
   extractProviderIdWithFallback
 } from "../lib/model-utils";
 import { getUIAdapter } from "../adapters";
-import { defaultCreateValues } from "./agent-config-defaults";
+import {
+  buildDefaultCreateValues,
+  defaultCreateValues
+} from "./agent-config-defaults";
 import { parseOnboardingGoalInput } from "../lib/onboarding-goal";
 import {
   buildOnboardingIssuePayload,
@@ -77,6 +86,10 @@ const DEFAULT_TASK_DESCRIPTION = `You are the CEO. You set the direction for the
 - break the roadmap into concrete tasks and start delegating work`;
 
 export function OnboardingWizard() {
+  const defaultAgentConfig = useMemo(
+    () => buildDefaultCreateValues("codex_local"),
+    [],
+  );
   const { onboardingOpen, onboardingOptions, closeOnboarding } = useDialog();
   const { companies, setSelectedCompanyId, loading: companiesLoading } = useCompany();
   const queryClient = useQueryClient();
@@ -114,8 +127,9 @@ export function OnboardingWizard() {
 
   // Step 2
   const [agentName, setAgentName] = useState("CEO");
-  const [adapterType, setAdapterType] = useState<AdapterType>("claude_local");
-  const [model, setModel] = useState("");
+  const [adapterType, setAdapterType] =
+    useState<AdapterType>(defaultAgentConfig.adapterType as AdapterType);
+  const [model, setModel] = useState(defaultAgentConfig.model);
   const [command, setCommand] = useState("");
   const [args, setArgs] = useState("");
   const [url, setUrl] = useState("");
@@ -289,8 +303,8 @@ export function OnboardingWizard() {
     setCompanyName("");
     setCompanyGoal("");
     setAgentName("CEO");
-    setAdapterType("claude_local");
-    setModel("");
+    setAdapterType(defaultAgentConfig.adapterType as AdapterType);
+    setModel(defaultAgentConfig.model);
     setCommand("");
     setArgs("");
     setUrl("");
@@ -335,7 +349,7 @@ export function OnboardingWizard() {
       dangerouslyBypassSandbox:
         adapterType === "codex_local"
           ? DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX
-          : defaultCreateValues.dangerouslyBypassSandbox
+          : buildDefaultCreateValues(adapterType).dangerouslyBypassSandbox
     });
     if (adapterType === "claude_local" && forceUnsetAnthropicApiKey) {
       const env =
@@ -388,7 +402,7 @@ export function OnboardingWizard() {
       const company = await companiesApi.create({ name: companyName.trim() });
       setCreatedCompanyId(company.id);
       setCreatedCompanyPrefix(company.issuePrefix);
-      setSelectedCompanyId(company.id);
+      setSelectedCompanyId(company.id, { source: "route_sync" });
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
 
       if (companyGoal.trim()) {
@@ -586,7 +600,7 @@ export function OnboardingWizard() {
         });
       }
 
-      setSelectedCompanyId(createdCompanyId);
+      setSelectedCompanyId(createdCompanyId, { source: "route_sync" });
       reset();
       closeOnboarding();
       navigate(
@@ -628,24 +642,30 @@ export function OnboardingWizard() {
             RemoveScroll which blocks wheel events on our custom (non-DialogContent)
             scroll container. A plain div preserves the background without scroll-locking. */}
         <div className="fixed inset-0 z-50 bg-background" />
-        <div className="fixed inset-0 z-50 flex" onKeyDown={handleKeyDown}>
-          {/* Close button */}
-          <button
-            onClick={handleClose}
-            className="absolute top-4 left-4 z-10 rounded-sm p-1.5 text-muted-foreground/60 hover:text-foreground transition-colors"
-          >
-            <X className="h-5 w-5" />
-            <span className="sr-only">Close</span>
-          </button>
+        <DialogPrimitive.Content asChild>
+          <div className="fixed inset-0 z-50 flex outline-none" onKeyDown={handleKeyDown}>
+            <DialogTitle className="sr-only">Company onboarding</DialogTitle>
+            <DialogDescription className="sr-only">
+              Create a company, add its first agent, and define a starter task.
+            </DialogDescription>
 
-          {/* Left half — form */}
-          <div
-            className={cn(
-              "w-full flex flex-col overflow-y-auto transition-[width] duration-500 ease-in-out",
-              step === 1 ? "md:w-1/2" : "md:w-full"
-            )}
-          >
-            <div className="w-full max-w-md mx-auto my-auto px-8 py-12 shrink-0">
+            {/* Close button */}
+            <button
+              onClick={handleClose}
+              className="absolute top-4 left-4 z-10 rounded-sm p-1.5 text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              <X className="h-5 w-5" />
+              <span className="sr-only">Close</span>
+            </button>
+
+            {/* Left half — form */}
+            <div
+              className={cn(
+                "w-full flex flex-col overflow-y-auto transition-[width] duration-500 ease-in-out",
+                step === 1 ? "md:w-1/2" : "md:w-full"
+              )}
+            >
+              <div className="w-full max-w-md mx-auto my-auto px-8 py-12 shrink-0">
               {/* Progress tabs */}
               <div className="flex items-center gap-0 mb-8 border-b border-border">
                 {(
@@ -761,18 +781,17 @@ export function OnboardingWizard() {
                     <div className="grid grid-cols-2 gap-2">
                       {[
                         {
-                          value: "claude_local" as const,
-                          label: "Claude Code",
-                          icon: Sparkles,
-                          desc: "Local Claude agent",
-                          recommended: true
-                        },
-                        {
                           value: "codex_local" as const,
                           label: "Codex",
                           icon: Code,
                           desc: "Local Codex agent",
                           recommended: true
+                        },
+                        {
+                          value: "claude_local" as const,
+                          label: "Claude Code",
+                          icon: Sparkles,
+                          desc: "Local Claude agent",
                         }
                       ].map((opt) => (
                         <button
@@ -1330,19 +1349,20 @@ export function OnboardingWizard() {
                   )}
                 </div>
               </div>
+              </div>
+            </div>
+
+            {/* Right half — ASCII art (hidden on mobile) */}
+            <div
+              className={cn(
+                "hidden md:block overflow-hidden bg-[#1d1d1d] transition-[width,opacity] duration-500 ease-in-out",
+                step === 1 ? "w-1/2 opacity-100" : "w-0 opacity-0"
+              )}
+            >
+              <AsciiArtAnimation />
             </div>
           </div>
-
-          {/* Right half — ASCII art (hidden on mobile) */}
-          <div
-            className={cn(
-              "hidden md:block overflow-hidden bg-[#1d1d1d] transition-[width,opacity] duration-500 ease-in-out",
-              step === 1 ? "w-1/2 opacity-100" : "w-0 opacity-0"
-            )}
-          >
-            <AsciiArtAnimation />
-          </div>
-        </div>
+        </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>
   );

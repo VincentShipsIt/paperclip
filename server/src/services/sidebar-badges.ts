@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, not } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import { agents, approvals, heartbeatRuns } from "@paperclipai/db";
 import type { SidebarBadges } from "@paperclipai/shared";
@@ -10,21 +10,26 @@ export function sidebarBadgeService(db: Db) {
   return {
     get: async (
       companyId: string,
-      extra?: { joinRequests?: number; unreadTouchedIssues?: number },
+      extra?: {
+        joinRequestIds?: string[];
+        unreadTouchedIssues?: number;
+        dismissedKeys?: Set<string>;
+        readKeys?: Set<string>;
+      },
     ): Promise<SidebarBadges> => {
-      const actionableApprovals = await db
-        .select({ count: sql<number>`count(*)` })
+      const actionableApprovalIds = await db
+        .select({ id: approvals.id })
         .from(approvals)
         .where(
           and(
             eq(approvals.companyId, companyId),
             inArray(approvals.status, ACTIONABLE_APPROVAL_STATUSES),
           ),
-        )
-        .then((rows) => Number(rows[0]?.count ?? 0));
+        );
 
       const latestRunByAgent = await db
         .selectDistinctOn([heartbeatRuns.agentId], {
+          runId: heartbeatRuns.id,
           runStatus: heartbeatRuns.status,
         })
         .from(heartbeatRuns)
@@ -39,10 +44,21 @@ export function sidebarBadgeService(db: Db) {
         .orderBy(heartbeatRuns.agentId, desc(heartbeatRuns.createdAt));
 
       const failedRuns = latestRunByAgent.filter((row) =>
-        FAILED_HEARTBEAT_STATUSES.includes(row.runStatus),
+        FAILED_HEARTBEAT_STATUSES.includes(row.runStatus) &&
+        !(extra?.dismissedKeys?.has(`run:${row.runId}`) ?? false) &&
+        !(extra?.readKeys?.has(`run:${row.runId}`) ?? false),
       ).length;
 
-      const joinRequests = extra?.joinRequests ?? 0;
+      const actionableApprovals = actionableApprovalIds.filter(
+        ({ id }) =>
+          !(extra?.dismissedKeys?.has(`approval:${id}`) ?? false) &&
+          !(extra?.readKeys?.has(`approval:${id}`) ?? false),
+      ).length;
+      const joinRequests = (extra?.joinRequestIds ?? []).filter(
+        (id) =>
+          !(extra?.dismissedKeys?.has(`join:${id}`) ?? false) &&
+          !(extra?.readKeys?.has(`join:${id}`) ?? false),
+      ).length;
       const unreadTouchedIssues = extra?.unreadTouchedIssues ?? 0;
       return {
         inbox: actionableApprovals + failedRuns + joinRequests + unreadTouchedIssues,

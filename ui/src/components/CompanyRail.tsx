@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { Company } from "@paperclipai/shared";
 import { CompanyPatternIcon } from "./CompanyPatternIcon";
+import { useDismissedInboxItems, useReadInboxItems } from "../hooks/useInboxBadge";
 
 const ORDER_STORAGE_KEY = "paperclip.companyOrder";
 
@@ -158,6 +159,8 @@ export function CompanyRail() {
   const { openOnboarding } = useDialog();
   const navigate = useNavigate();
   const location = useLocation();
+  const { dismissed } = useDismissedInboxItems();
+  const { readItems } = useReadInboxItems();
   const isInstanceRoute = location.pathname.startsWith("/instance/");
   const highlightedCompanyId = isInstanceRoute ? null : selectedCompanyId;
   const sidebarCompanies = useMemo(
@@ -165,6 +168,8 @@ export function CompanyRail() {
     [companies],
   );
   const companyIds = useMemo(() => sidebarCompanies.map((company) => company.id), [sidebarCompanies]);
+  const dismissedKey = useMemo(() => Array.from(dismissed).sort().join("|"), [dismissed]);
+  const readKey = useMemo(() => Array.from(readItems).sort().join("|"), [readItems]);
 
   const liveRunsQueries = useQueries({
     queries: companyIds.map((companyId) => ({
@@ -175,8 +180,12 @@ export function CompanyRail() {
   });
   const sidebarBadgeQueries = useQueries({
     queries: companyIds.map((companyId) => ({
-      queryKey: queryKeys.sidebarBadges(companyId),
-      queryFn: () => sidebarBadgesApi.get(companyId),
+      queryKey: [...queryKeys.sidebarBadges(companyId), dismissedKey, readKey],
+      queryFn: () =>
+        sidebarBadgesApi.get(companyId, {
+          dismissedKeys: dismissed,
+          readKeys: readItems,
+        }),
       refetchInterval: 15_000,
     })),
   });
@@ -307,20 +316,20 @@ export function CompanyRail() {
       {/* Separator before add button */}
       <div className="w-8 h-px bg-border mx-auto shrink-0" />
 
-      {/* Add company button */}
+      {/* New company button */}
       <div className="flex items-center justify-center py-2 shrink-0">
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <button
               onClick={() => openOnboarding()}
               className="flex items-center justify-center w-11 h-11 rounded-[22px] hover:rounded-[14px] border-2 border-dashed border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-[border-color,color,border-radius] duration-150"
-              aria-label="Add company"
+              aria-label="New Company"
             >
               <Plus className="h-5 w-5" />
             </button>
           </TooltipTrigger>
           <TooltipContent side="right" sideOffset={8}>
-            <p>Add company</p>
+            <p>New Company</p>
           </TooltipContent>
         </Tooltip>
       </div>

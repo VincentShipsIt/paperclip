@@ -9,10 +9,12 @@ import { issuesApi } from "../api/issues";
 import { queryKeys } from "../lib/queryKeys";
 import {
   computeInboxBadgeData,
+  DISMISSED_ITEMS_UPDATED_EVENT,
   getRecentTouchedIssues,
   loadDismissedInboxItems,
   saveDismissedInboxItems,
   loadReadInboxItems,
+  READ_ITEMS_UPDATED_EVENT,
   saveReadInboxItems,
   READ_ITEMS_KEY,
 } from "../lib/inbox";
@@ -27,8 +29,15 @@ export function useDismissedInboxItems() {
       if (event.key !== "paperclip:inbox:dismissed") return;
       setDismissed(loadDismissedInboxItems());
     };
+    const handleLocalUpdate = () => {
+      setDismissed(loadDismissedInboxItems());
+    };
     window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    window.addEventListener(DISMISSED_ITEMS_UPDATED_EVENT, handleLocalUpdate);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(DISMISSED_ITEMS_UPDATED_EVENT, handleLocalUpdate);
+    };
   }, []);
 
   const dismiss = (id: string) => {
@@ -51,8 +60,15 @@ export function useReadInboxItems() {
       if (event.key !== READ_ITEMS_KEY) return;
       setReadItems(loadReadInboxItems());
     };
+    const handleLocalUpdate = () => {
+      setReadItems(loadReadInboxItems());
+    };
     window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
+    window.addEventListener(READ_ITEMS_UPDATED_EVENT, handleLocalUpdate);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(READ_ITEMS_UPDATED_EVENT, handleLocalUpdate);
+    };
   }, []);
 
   const markRead = (id: string) => {
@@ -78,6 +94,7 @@ export function useReadInboxItems() {
 
 export function useInboxBadge(companyId: string | null | undefined) {
   const { dismissed } = useDismissedInboxItems();
+  const { readItems } = useReadInboxItems();
 
   const { data: approvals = [] } = useQuery({
     queryKey: queryKeys.approvals.list(companyId!),
@@ -135,7 +152,8 @@ export function useInboxBadge(companyId: string | null | undefined) {
         heartbeatRuns,
         mineIssues,
         dismissed,
+        readItems,
       }),
-    [approvals, joinRequests, dashboard, heartbeatRuns, mineIssues, dismissed],
+    [approvals, joinRequests, dashboard, heartbeatRuns, mineIssues, dismissed, readItems],
   );
 }

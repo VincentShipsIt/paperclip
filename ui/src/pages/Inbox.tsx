@@ -1029,9 +1029,11 @@ export function Inbox() {
     let filtered = getApprovalsForTab(approvals ?? [], tab, allApprovalFilter);
     if (tab === "mine") {
       filtered = filtered.filter((a) => !dismissed.has(`approval:${a.id}`));
+    } else if (tab === "unread") {
+      filtered = filtered.filter((a) => !dismissed.has(`approval:${a.id}`) && !readItems.has(`approval:${a.id}`));
     }
     return filtered;
-  }, [approvals, tab, allApprovalFilter, dismissed]);
+  }, [approvals, tab, allApprovalFilter, dismissed, readItems]);
   const showJoinRequestsCategory =
     allCategoryFilter === "everything" || allCategoryFilter === "join_requests";
   const showTouchedCategory =
@@ -1043,14 +1045,20 @@ export function Inbox() {
   const showAlertsCategory = allCategoryFilter === "everything" || allCategoryFilter === "alerts";
   const failedRunsForTab = useMemo(() => {
     if (tab === "all" && !showFailedRunsCategory) return [];
+    if (tab === "unread") return failedRuns.filter((run) => !readItems.has(`run:${run.id}`));
     return failedRuns;
-  }, [failedRuns, tab, showFailedRunsCategory]);
+  }, [failedRuns, tab, showFailedRunsCategory, readItems]);
 
   const joinRequestsForTab = useMemo(() => {
     if (tab === "all" && !showJoinRequestsCategory) return [];
     if (tab === "mine") return joinRequests.filter((jr) => !dismissed.has(`join:${jr.id}`));
+    if (tab === "unread") {
+      return joinRequests.filter(
+        (jr) => !dismissed.has(`join:${jr.id}`) && !readItems.has(`join:${jr.id}`),
+      );
+    }
     return joinRequests;
-  }, [joinRequests, tab, showJoinRequestsCategory, dismissed]);
+  }, [joinRequests, tab, showJoinRequestsCategory, dismissed, readItems]);
 
   const workItemsToRender = useMemo(
     () =>

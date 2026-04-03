@@ -318,6 +318,27 @@ describe("inbox helpers", () => {
     });
   });
 
+  it("does not count read non-issue items toward the inbox badge", () => {
+    const result = computeInboxBadgeData({
+      approvals: [makeApproval("pending")],
+      joinRequests: [makeJoinRequest("join-1")],
+      dashboard,
+      heartbeatRuns: [makeRun("run-1", "failed", "2026-03-11T00:00:00.000Z")],
+      mineIssues: [makeIssue("1", true)],
+      dismissed: new Set<string>(),
+      readItems: new Set<string>(["approval:approval-pending", "join:join-1", "run:run-1"]),
+    });
+
+    expect(result).toEqual({
+      inbox: 3,
+      approvals: 0,
+      failedRuns: 0,
+      joinRequests: 0,
+      mineIssues: 1,
+      alerts: 2,
+    });
+  });
+
   it("keeps read issues in the touched list but excludes them from unread counts", () => {
     const issues = [makeIssue("1", true), makeIssue("2", false)];
 

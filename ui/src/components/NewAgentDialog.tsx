@@ -41,18 +41,17 @@ const ADVANCED_ADAPTER_OPTIONS: Array<{
   recommended?: boolean;
 }> = [
   {
-    value: "claude_local",
-    label: "Claude Code",
-    icon: Sparkles,
-    desc: "Local Claude agent",
-    recommended: true,
-  },
-  {
     value: "codex_local",
     label: "Codex",
     icon: Code,
     desc: "Local Codex agent",
     recommended: true,
+  },
+  {
+    value: "claude_local",
+    label: "Claude Code",
+    icon: Sparkles,
+    desc: "Local Claude agent",
   },
   {
     value: "gemini_local",

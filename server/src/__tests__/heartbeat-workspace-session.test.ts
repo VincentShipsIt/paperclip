@@ -406,6 +406,26 @@ describe("buildExplicitResumeSessionOverride", () => {
       },
     });
   });
+
+  it("starts fresh for process-loss recovery when no matching task session params are available", () => {
+    const result = buildExplicitResumeSessionOverride({
+      resumeFromRunId: "run-1",
+      resumeRunSessionIdBefore: "session-before",
+      resumeRunSessionIdAfter: "session-after",
+      taskSession: {
+        sessionParamsJson: {
+          sessionId: "other-session",
+          cwd: "/tmp/project",
+        },
+        sessionDisplayId: "other-session",
+        lastRunId: "run-2",
+      },
+      sessionCodec: codexSessionCodec,
+      allowFallbackToRunSessionId: false,
+    });
+
+    expect(result).toBeNull();
+  });
 });
 
 describe("formatRuntimeWorkspaceWarningLog", () => {

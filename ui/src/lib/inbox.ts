@@ -7,6 +7,8 @@ export const DISMISSED_KEY = "paperclip:inbox:dismissed";
 export const READ_ITEMS_KEY = "paperclip:inbox:read-items";
 export const INBOX_LAST_TAB_KEY = "paperclip:inbox:last-tab";
 export const INBOX_ISSUE_COLUMNS_KEY = "paperclip:inbox:issue-columns";
+export const DISMISSED_ITEMS_UPDATED_EVENT = "paperclip:inbox:dismissed-updated";
+export const READ_ITEMS_UPDATED_EVENT = "paperclip:inbox:read-items-updated";
 export type InboxTab = "mine" | "recent" | "unread" | "all";
 export type InboxApprovalFilter = "all" | "actionable" | "resolved";
 export const inboxIssueColumns = ["status", "id", "assignee", "project", "workspace", "labels", "updated"] as const;
@@ -55,6 +57,7 @@ export function loadDismissedInboxItems(): Set<string> {
 export function saveDismissedInboxItems(ids: Set<string>) {
   try {
     localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids]));
+    window.dispatchEvent(new CustomEvent(DISMISSED_ITEMS_UPDATED_EVENT));
   } catch {
     // Ignore localStorage failures.
   }
@@ -72,6 +75,7 @@ export function loadReadInboxItems(): Set<string> {
 export function saveReadInboxItems(ids: Set<string>) {
   try {
     localStorage.setItem(READ_ITEMS_KEY, JSON.stringify([...ids]));
+    window.dispatchEvent(new CustomEvent(READ_ITEMS_UPDATED_EVENT));
   } catch {
     // Ignore localStorage failures.
   }
@@ -340,6 +344,7 @@ export function computeInboxBadgeData({
   heartbeatRuns,
   mineIssues,
   dismissed,
+  readItems,
 }: {
   approvals: Approval[];
   joinRequests: JoinRequest[];
@@ -347,17 +352,23 @@ export function computeInboxBadgeData({
   heartbeatRuns: HeartbeatRun[];
   mineIssues: Issue[];
   dismissed: Set<string>;
+  readItems?: Set<string>;
 }): InboxBadgeData {
   const actionableApprovals = approvals.filter(
     (approval) =>
       ACTIONABLE_APPROVAL_STATUSES.has(approval.status) &&
-      !dismissed.has(`approval:${approval.id}`),
+      !dismissed.has(`approval:${approval.id}`) &&
+      !(readItems?.has(`approval:${approval.id}`) ?? false),
   ).length;
   const failedRuns = getLatestFailedRunsByAgent(heartbeatRuns).filter(
-    (run) => !dismissed.has(`run:${run.id}`),
+    (run) =>
+      !dismissed.has(`run:${run.id}`) &&
+      !(readItems?.has(`run:${run.id}`) ?? false),
   ).length;
   const visibleJoinRequests = joinRequests.filter(
-    (jr) => !dismissed.has(`join:${jr.id}`),
+    (jr) =>
+      !dismissed.has(`join:${jr.id}`) &&
+      !(readItems?.has(`join:${jr.id}`) ?? false),
   ).length;
   const visibleMineIssues = mineIssues.filter((issue) => issue.isUnreadForMe).length;
   const agentErrorCount = dashboard?.agents.error ?? 0;

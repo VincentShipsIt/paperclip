@@ -31,7 +31,9 @@ import {
   Upload,
 } from "lucide-react";
 import { Field, adapterLabels } from "../components/agent-config-primitives";
-import { defaultCreateValues } from "../components/agent-config-defaults";
+import {
+  buildDefaultCreateValues,
+} from "../components/agent-config-defaults";
 import { getUIAdapter, listUIAdapters } from "../adapters";
 import type { CreateConfigValues } from "@paperclipai/adapter-utils";
 import {
@@ -557,7 +559,9 @@ function AdapterPickerList({
           {agents.map((agent) => {
             const selectedType = adapterOverrides[agent.slug] ?? agent.adapterType;
             const isExpanded = expandedSlugs.has(agent.slug);
-            const vals = configValues[agent.slug] ?? { ...defaultCreateValues, adapterType: selectedType };
+            const vals =
+              configValues[agent.slug]
+              ?? buildDefaultCreateValues(selectedType as CreateConfigValues["adapterType"]);
 
             return (
               <div key={agent.slug}>
@@ -697,9 +701,9 @@ export function CompanyImport() {
     enabled: Boolean(selectedCompanyId),
   });
   const ceoAdapterType = useMemo(() => {
-    if (!companyAgents) return "claude_local";
+    if (!companyAgents) return "codex_local";
     const ceo = companyAgents.find((a) => a.role === "ceo");
-    return ceo?.adapterType ?? "claude_local";
+    return ceo?.adapterType ?? "codex_local";
   }, [companyAgents]);
 
   const localZipHelpText =
@@ -1042,7 +1046,13 @@ export function CompanyImport() {
   function handleAdapterConfigChange(slug: string, patch: Partial<CreateConfigValues>) {
     setAdapterConfigValues((prev) => ({
       ...prev,
-      [slug]: { ...(prev[slug] ?? { ...defaultCreateValues, adapterType: adapterOverrides[slug] ?? "claude_local" }), ...patch },
+      [slug]: {
+        ...(prev[slug]
+          ?? buildDefaultCreateValues(
+            (adapterOverrides[slug] ?? "codex_local") as CreateConfigValues["adapterType"],
+          )),
+        ...patch,
+      },
     }));
   }
 

@@ -27,13 +27,15 @@ const DEFAULT_SESSION_COMPACTION_POLICY: SessionCompactionPolicy = {
   maxSessionAgeHours: 72,
 };
 
-// Adapters with native context management still participate in session resume,
-// but Paperclip should not rotate them using threshold-based compaction.
-const ADAPTER_MANAGED_SESSION_POLICY: SessionCompactionPolicy = {
+// Adapters with native context management can still accumulate extremely large
+// provider-side threads when Paperclip keeps resuming them heartbeat after
+// heartbeat. Keep resume enabled, but force periodic rotation so autonomous
+// agents do not quietly consume runaway context windows.
+const NATIVE_MANAGED_SESSION_POLICY: SessionCompactionPolicy = {
   enabled: true,
-  maxSessionRuns: 0,
-  maxRawInputTokens: 0,
-  maxSessionAgeHours: 0,
+  maxSessionRuns: 8,
+  maxRawInputTokens: 5_000_000,
+  maxSessionAgeHours: 12,
 };
 
 export const LEGACY_SESSIONED_ADAPTER_TYPES = new Set([
@@ -49,12 +51,12 @@ export const ADAPTER_SESSION_MANAGEMENT: Record<string, AdapterSessionManagement
   claude_local: {
     supportsSessionResume: true,
     nativeContextManagement: "confirmed",
-    defaultSessionCompaction: ADAPTER_MANAGED_SESSION_POLICY,
+    defaultSessionCompaction: NATIVE_MANAGED_SESSION_POLICY,
   },
   codex_local: {
     supportsSessionResume: true,
     nativeContextManagement: "confirmed",
-    defaultSessionCompaction: ADAPTER_MANAGED_SESSION_POLICY,
+    defaultSessionCompaction: NATIVE_MANAGED_SESSION_POLICY,
   },
   cursor: {
     supportsSessionResume: true,
