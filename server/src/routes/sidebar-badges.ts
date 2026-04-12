@@ -1,15 +1,18 @@
 import { Router } from "express";
 import type { Db } from "@paperclipai/db";
 import { and, eq } from "drizzle-orm";
-import { joinRequests } from "@paperclipai/db";
+import { inboxDismissals, joinRequests } from "@paperclipai/db";
 import { sidebarBadgeService } from "../services/sidebar-badges.js";
 import { accessService } from "../services/access.js";
 import { dashboardService } from "../services/dashboard.js";
 import { assertCompanyAccess } from "./authz.js";
 
-function parseQuerySet(value: unknown): Set<string> {
-  const rawValues = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
-  return new Set(rawValues.map((entry) => entry.trim()).filter(Boolean));
+function buildDismissedAtByKey(
+  dismissals: Array<{ itemKey: string; dismissedAt: Date | string }>,
+): Map<string, number> {
+  return new Map(
+    dismissals.map((dismissal) => [dismissal.itemKey, new Date(dismissal.dismissedAt).getTime()]),
+  );
 }
 
 export function sidebarBadgeRoutes(db: Db) {
@@ -21,8 +24,6 @@ export function sidebarBadgeRoutes(db: Db) {
   router.get("/companies/:companyId/sidebar-badges", async (req, res) => {
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
-    const dismissedKeys = parseQuerySet(req.query.dismissed);
-    const readKeys = parseQuerySet(req.query.read);
     let canApproveJoins = false;
     if (req.actor.type === "board") {
       canApproveJoins =
@@ -33,30 +34,35 @@ export function sidebarBadgeRoutes(db: Db) {
       canApproveJoins = await access.hasPermission(companyId, "agent", req.actor.agentId, "joins:approve");
     }
 
-    const joinRequestIds = canApproveJoins
+    const visibleJoinRequests = canApproveJoins
       ? await db
-        .select({ id: joinRequests.id })
+        .select({
+          id: joinRequests.id,
+          updatedAt: joinRequests.updatedAt,
+          createdAt: joinRequests.createdAt,
+        })
         .from(joinRequests)
         .where(and(eq(joinRequests.companyId, companyId), eq(joinRequests.status, "pending_approval")))
-        .then((rows) => rows.map((row) => row.id))
       : [];
 
+    const dismissedAtByKey =
+      req.actor.type === "board" && req.actor.userId
+        ? await db
+          .select({ itemKey: inboxDismissals.itemKey, dismissedAt: inboxDismissals.dismissedAt })
+          .from(inboxDismissals)
+          .where(and(eq(inboxDismissals.companyId, companyId), eq(inboxDismissals.userId, req.actor.userId)))
+          .then(buildDismissedAtByKey)
+        : new Map<string, number>();
+
     const badges = await svc.get(companyId, {
-      joinRequestIds,
-      dismissedKeys,
-      readKeys,
+      dismissals: dismissedAtByKey,
+      joinRequests: visibleJoinRequests,
     });
     const summary = await dashboard.summary(companyId);
     const hasFailedRuns = badges.failedRuns > 0;
     const alertsCount =
-      (summary.agents.error > 0 && !hasFailedRuns && !dismissedKeys.has("alert:agent-errors")
-        ? 1
-        : 0) +
-      (summary.costs.monthBudgetCents > 0 &&
-      summary.costs.monthUtilizationPercent >= 80 &&
-      !dismissedKeys.has("alert:budget")
-        ? 1
-        : 0);
+      (summary.agents.error > 0 && !hasFailedRuns ? 1 : 0) +
+      (summary.costs.monthBudgetCents > 0 && summary.costs.monthUtilizationPercent >= 80 ? 1 : 0);
     badges.inbox = badges.failedRuns + alertsCount + badges.joinRequests + badges.approvals;
 
     res.json(badges);

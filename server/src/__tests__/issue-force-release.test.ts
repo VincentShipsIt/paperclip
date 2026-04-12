@@ -18,6 +18,7 @@ vi.mock("../services/index.js", () => ({
   agentService: () => ({}),
   documentService: () => ({}),
   executionWorkspaceService: () => ({}),
+  feedbackService: () => ({}),
   goalService: () => ({}),
   heartbeatService: () => ({
     wakeup: vi.fn(async () => undefined),
@@ -26,6 +27,7 @@ vi.mock("../services/index.js", () => ({
     getActiveRunForAgent: vi.fn(async () => null),
     cancelRun: vi.fn(async () => null),
   }),
+  instanceSettingsService: () => ({}),
   issueApprovalService: () => ({}),
   issueService: () => mockIssueService,
   logActivity: mockLogActivity,

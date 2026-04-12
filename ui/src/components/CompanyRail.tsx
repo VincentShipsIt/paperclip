@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/tooltip";
 import type { Company } from "@paperclipai/shared";
 import { CompanyPatternIcon } from "./CompanyPatternIcon";
-import { useDismissedInboxItems, useReadInboxItems } from "../hooks/useInboxBadge";
 
 const ORDER_STORAGE_KEY = "paperclip.companyOrder";
 
@@ -159,8 +158,6 @@ export function CompanyRail() {
   const { openOnboarding } = useDialog();
   const navigate = useNavigate();
   const location = useLocation();
-  const { dismissed } = useDismissedInboxItems();
-  const { readItems } = useReadInboxItems();
   const isInstanceRoute = location.pathname.startsWith("/instance/");
   const highlightedCompanyId = isInstanceRoute ? null : selectedCompanyId;
   const sidebarCompanies = useMemo(
@@ -168,8 +165,6 @@ export function CompanyRail() {
     [companies],
   );
   const companyIds = useMemo(() => sidebarCompanies.map((company) => company.id), [sidebarCompanies]);
-  const dismissedKey = useMemo(() => Array.from(dismissed).sort().join("|"), [dismissed]);
-  const readKey = useMemo(() => Array.from(readItems).sort().join("|"), [readItems]);
 
   const liveRunsQueries = useQueries({
     queries: companyIds.map((companyId) => ({
@@ -180,12 +175,8 @@ export function CompanyRail() {
   });
   const sidebarBadgeQueries = useQueries({
     queries: companyIds.map((companyId) => ({
-      queryKey: [...queryKeys.sidebarBadges(companyId), dismissedKey, readKey],
-      queryFn: () =>
-        sidebarBadgesApi.get(companyId, {
-          dismissedKeys: dismissed,
-          readKeys: readItems,
-        }),
+      queryKey: queryKeys.sidebarBadges(companyId),
+      queryFn: () => sidebarBadgesApi.get(companyId),
       refetchInterval: 15_000,
     })),
   });

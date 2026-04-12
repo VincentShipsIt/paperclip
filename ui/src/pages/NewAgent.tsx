@@ -18,23 +18,37 @@ import { Shield } from "lucide-react";
 import { cn, agentUrl } from "../lib/utils";
 import { roleLabels } from "../components/agent-config-primitives";
 import { AgentConfigForm, type CreateConfigValues } from "../components/AgentConfigForm";
-import {
-  buildDefaultCreateValues,
-  defaultCreateValues,
-} from "../components/agent-config-defaults";
-import { getUIAdapter } from "../adapters";
+import { defaultCreateValues } from "../components/agent-config-defaults";
+import { getUIAdapter, listUIAdapters } from "../adapters";
+import { useDisabledAdaptersSync } from "../adapters/use-disabled-adapters";
+import { isValidAdapterType } from "../adapters/metadata";
 import { ReportsToPicker } from "../components/ReportsToPicker";
+import { buildNewAgentRuntimeConfig } from "../lib/new-agent-runtime-config";
+import {
+  DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
+  DEFAULT_CODEX_LOCAL_MODEL,
+} from "@paperclipai/adapter-codex-local";
+import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
+import { DEFAULT_GEMINI_LOCAL_MODEL } from "@paperclipai/adapter-gemini-local";
 
-const SUPPORTED_ADVANCED_ADAPTER_TYPES = new Set<CreateConfigValues["adapterType"]>([
-  "claude_local",
-  "codex_local",
-  "gemini_local",
-  "opencode_local",
-  "pi_local",
-  "cursor",
-  "hermes_local",
-  "openclaw_gateway",
-]);
+function createValuesForAdapterType(
+  adapterType: CreateConfigValues["adapterType"],
+): CreateConfigValues {
+  const { adapterType: _discard, ...defaults } = defaultCreateValues;
+  const nextValues: CreateConfigValues = { ...defaults, adapterType };
+  if (adapterType === "codex_local") {
+    nextValues.model = DEFAULT_CODEX_LOCAL_MODEL;
+    nextValues.dangerouslyBypassSandbox =
+      DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX;
+  } else if (adapterType === "gemini_local") {
+    nextValues.model = DEFAULT_GEMINI_LOCAL_MODEL;
+  } else if (adapterType === "cursor") {
+    nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
+  } else if (adapterType === "opencode_local") {
+    nextValues.model = "";
+  }
+  return nextValues;
+}
 
 export function NewAgent() {
   const { selectedCompanyId } = useCompany();
@@ -98,12 +112,10 @@ export function NewAgent() {
   useEffect(() => {
     const requested = presetAdapterType;
     if (!requested) return;
-    if (!SUPPORTED_ADVANCED_ADAPTER_TYPES.has(requested as CreateConfigValues["adapterType"])) {
-      return;
-    }
+    if (!isValidAdapterType(requested)) return;
     setConfigValues((prev) => {
       if (prev.adapterType === requested) return prev;
-      return buildDefaultCreateValues(requested as CreateConfigValues["adapterType"]);
+      return createValuesForAdapterType(requested as CreateConfigValues["adapterType"]);
     });
   }, [presetAdapterType]);
 
@@ -164,15 +176,10 @@ export function NewAgent() {
       ...(selectedSkillKeys.length > 0 ? { desiredSkills: selectedSkillKeys } : {}),
       adapterType: configValues.adapterType,
       adapterConfig: buildAdapterConfig(),
-      runtimeConfig: {
-        heartbeat: {
-          enabled: configValues.heartbeatEnabled,
-          intervalSec: configValues.intervalSec,
-          wakeOnDemand: true,
-          cooldownSec: 10,
-          maxConcurrentRuns: 1,
-        },
-      },
+      runtimeConfig: buildNewAgentRuntimeConfig({
+        heartbeatEnabled: configValues.heartbeatEnabled,
+        intervalSec: configValues.intervalSec,
+      }),
       budgetMonthlyCents: 0,
     });
   }

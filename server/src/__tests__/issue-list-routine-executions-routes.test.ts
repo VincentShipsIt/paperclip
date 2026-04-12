@@ -22,6 +22,7 @@ vi.mock("../services/index.js", () => ({
   executionWorkspaceService: () => ({
     getById: vi.fn(),
   }),
+  feedbackService: () => ({}),
   goalService: () => ({
     getById: vi.fn(),
     getDefaultCompanyGoal: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("../services/index.js", () => ({
     wakeup: vi.fn(async () => undefined),
     reportRunActivity: vi.fn(async () => undefined),
   }),
+  instanceSettingsService: () => ({}),
   issueApprovalService: () => ({}),
   issueService: () => mockIssueService,
   logActivity: vi.fn(async () => undefined),

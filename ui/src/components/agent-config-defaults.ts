@@ -16,6 +16,7 @@ const BASE_CREATE_VALUES: CreateConfigValues = {
   chrome: false,
   dangerouslySkipPermissions: true,
   search: false,
+  fastMode: false,
   dangerouslyBypassSandbox: false,
   command: "",
   args: "",

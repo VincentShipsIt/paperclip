@@ -742,9 +742,9 @@ function SkillPane({
             />
           )
         ) : file.markdown && viewMode === "preview" ? (
-          <MarkdownBody>{body}</MarkdownBody>
+          <MarkdownBody softBreaks={false} linkIssueReferences={false}>{body}</MarkdownBody>
         ) : (
-          <pre className="overflow-x-auto whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-sm text-foreground">
+          <pre className="overflow-x-auto whitespace-pre-wrap wrap-break-word border-0 bg-transparent p-0 font-mono text-sm text-foreground">
             <code>{file.content}</code>
           </pre>
         )}
@@ -878,7 +878,7 @@ export function CompanySkills() {
     setDeleteOpen(true);
   }
 
-  function handleDeleteDialogChange(open: boolean) {
+  function closeDeleteDialog(open: boolean) {
     setDeleteOpen(open);
     if (!open) {
       setDeleteTargetSkillId(null);
@@ -1028,28 +1028,20 @@ export function CompanySkills() {
   const deleteSkill = useMutation({
     mutationFn: () => companySkillsApi.delete(selectedCompanyId!, deleteTargetSkillId!),
     onSuccess: async (skill) => {
-      handleDeleteDialogChange(false);
+      closeDeleteDialog(false);
       setDisplayedDetail(null);
       setDisplayedFile(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.list(selectedCompanyId!) }),
-        ...(deleteTargetSkillId
-          ? [
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.companySkills.detail(selectedCompanyId!, deleteTargetSkillId),
-              }),
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.companySkills.updateStatus(selectedCompanyId!, deleteTargetSkillId),
-              }),
-            ]
-          : []),
-        ...(deleteTargetSkillId
-          ? [
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.companySkills.file(selectedCompanyId!, deleteTargetSkillId, selectedPath),
-              }),
-            ]
-          : []),
+        ...(deleteTargetSkillId ? [
+          queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.detail(selectedCompanyId!, deleteTargetSkillId) }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.companySkills.updateStatus(selectedCompanyId!, deleteTargetSkillId) }),
+        ] : []),
+        ...(deleteTargetSkillId ? [
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.companySkills.file(selectedCompanyId!, deleteTargetSkillId, selectedPath),
+          }),
+        ] : []),
       ]);
       await queryClient.refetchQueries({
         queryKey: queryKeys.companySkills.list(selectedCompanyId!),
@@ -1086,12 +1078,12 @@ export function CompanySkills() {
 
   return (
     <>
-      <Dialog open={deleteOpen} onOpenChange={handleDeleteDialogChange}>
+      <Dialog open={deleteOpen} onOpenChange={closeDeleteDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Remove skill</DialogTitle>
             <DialogDescription>
-              Remove this skill from the company library. If any agents still use it, removal stays blocked until it is detached.
+              Remove this skill from the company library. If any agents still use it, removal will be blocked until it is detached.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 text-sm">
@@ -1113,16 +1105,12 @@ export function CompanySkills() {
           </div>
           <DialogFooter>
             {(deleteTargetDetail?.usedByAgents.length ?? 0) > 0 ? (
-              <Button variant="ghost" onClick={() => handleDeleteDialogChange(false)}>
+              <Button variant="ghost" onClick={() => closeDeleteDialog(false)}>
                 Close
               </Button>
             ) : (
               <>
-                <Button
-                  variant="ghost"
-                  onClick={() => handleDeleteDialogChange(false)}
-                  disabled={deleteSkill.isPending}
-                >
+                <Button variant="ghost" onClick={() => closeDeleteDialog(false)} disabled={deleteSkill.isPending}>
                   Cancel
                 </Button>
                 <Button

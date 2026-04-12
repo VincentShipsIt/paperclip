@@ -27,7 +27,7 @@ import type {
   CompanySkillUsageAgent,
 } from "@paperclipai/shared";
 import { normalizeAgentUrlKey } from "@paperclipai/shared";
-import { findServerAdapter } from "../adapters/index.js";
+import { findActiveServerAdapter } from "../adapters/index.js";
 import { resolvePaperclipInstanceRoot } from "../home-paths.js";
 import { notFound, unprocessable } from "../errors.js";
 import { ghFetch, gitHubApiBase, resolveRawGitHubUrl } from "./github-fetch.js";
@@ -1575,7 +1575,7 @@ export function companySkillService(db: Db) {
 
     return Promise.all(
       desiredAgents.map(async (agent) => {
-        const adapter = findServerAdapter(agent.adapterType);
+        const adapter = findActiveServerAdapter(agent.adapterType);
         let actualState: string | null = null;
 
         if (!adapter?.listSkills) {
@@ -2064,15 +2064,9 @@ export function companySkillService(db: Db) {
       const sourceKind = asString(getSkillMeta(skill).sourceKind);
       let source = normalizeSkillDirectory(skill);
       if (!source) {
-        const cachedPath = resolveRuntimeSkillMaterializedPath(companyId, skill);
-        const cachedStat = await fs.stat(cachedPath).catch(() => null);
-        if (cachedStat?.isDirectory()) {
-          source = cachedPath;
-        } else if (options.materializeMissing === false) {
-          source = cachedPath;
-        } else {
-          source = await materializeRuntimeSkillFiles(companyId, skill).catch(() => null);
-        }
+        source = options.materializeMissing === false
+          ? resolveRuntimeSkillMaterializedPath(companyId, skill)
+          : await materializeRuntimeSkillFiles(companyId, skill).catch(() => null);
       }
       if (!source) continue;
 
@@ -2323,9 +2317,7 @@ export function companySkillService(db: Db) {
     const usedByAgents = await usage(companyId, skill.key);
 
     if (usedByAgents.length > 0) {
-      const agentNames = usedByAgents
-        .map((agent) => agent.name)
-        .sort((left, right) => left.localeCompare(right));
+      const agentNames = usedByAgents.map((agent) => agent.name).sort((left, right) => left.localeCompare(right));
       throw unprocessable(
         `Cannot delete skill "${skill.name}" while it is still used by ${agentNames.join(", ")}. Detach it from those agents first.`,
         {

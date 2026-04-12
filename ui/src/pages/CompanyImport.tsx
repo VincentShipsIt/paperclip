@@ -31,9 +31,8 @@ import {
   Upload,
 } from "lucide-react";
 import { Field, adapterLabels } from "../components/agent-config-primitives";
-import {
-  buildDefaultCreateValues,
-} from "../components/agent-config-defaults";
+import { getAdapterLabel } from "../adapters/adapter-display-registry";
+import { defaultCreateValues } from "../components/agent-config-defaults";
 import { getUIAdapter, listUIAdapters } from "../adapters";
 import type { CreateConfigValues } from "@paperclipai/adapter-utils";
 import {
@@ -242,10 +241,10 @@ function ImportPreviewPane({
         {parsed ? (
           <>
             <FrontmatterCard data={parsed.data} />
-            {parsed.body.trim() && <MarkdownBody resolveImageSrc={resolveImageSrc}>{parsed.body}</MarkdownBody>}
+            {parsed.body.trim() && <MarkdownBody resolveImageSrc={resolveImageSrc} softBreaks={false} linkIssueReferences={false}>{parsed.body}</MarkdownBody>}
           </>
         ) : isMarkdown ? (
-          <MarkdownBody resolveImageSrc={resolveImageSrc}>{textContent ?? ""}</MarkdownBody>
+          <MarkdownBody resolveImageSrc={resolveImageSrc} softBreaks={false} linkIssueReferences={false}>{textContent ?? ""}</MarkdownBody>
         ) : imageSrc ? (
           <div className="flex min-h-[520px] items-center justify-center rounded-lg border border-border bg-accent/10 p-6">
             <img src={imageSrc} alt={selectedFile} className="max-h-[480px] max-w-full object-contain" />
@@ -516,7 +515,7 @@ function ConflictResolutionList({
 
 const IMPORT_ADAPTER_OPTIONS: { value: string; label: string }[] = listUIAdapters().map((adapter) => ({
   value: adapter.type,
-  label: adapterLabels[adapter.type] ?? adapter.label,
+  label: adapterLabels[adapter.type] ?? getAdapterLabel(adapter.type),
 }));
 
 // ── Adapter picker for imported agents ───────────────────────────────
@@ -559,9 +558,7 @@ function AdapterPickerList({
           {agents.map((agent) => {
             const selectedType = adapterOverrides[agent.slug] ?? agent.adapterType;
             const isExpanded = expandedSlugs.has(agent.slug);
-            const vals =
-              configValues[agent.slug]
-              ?? buildDefaultCreateValues(selectedType as CreateConfigValues["adapterType"]);
+            const vals = configValues[agent.slug] ?? { ...defaultCreateValues, adapterType: selectedType };
 
             return (
               <div key={agent.slug}>
@@ -701,9 +698,9 @@ export function CompanyImport() {
     enabled: Boolean(selectedCompanyId),
   });
   const ceoAdapterType = useMemo(() => {
-    if (!companyAgents) return "codex_local";
+    if (!companyAgents) return "claude_local";
     const ceo = companyAgents.find((a) => a.role === "ceo");
-    return ceo?.adapterType ?? "codex_local";
+    return ceo?.adapterType ?? "claude_local";
   }, [companyAgents]);
 
   const localZipHelpText =
@@ -1046,13 +1043,7 @@ export function CompanyImport() {
   function handleAdapterConfigChange(slug: string, patch: Partial<CreateConfigValues>) {
     setAdapterConfigValues((prev) => ({
       ...prev,
-      [slug]: {
-        ...(prev[slug]
-          ?? buildDefaultCreateValues(
-            (adapterOverrides[slug] ?? "codex_local") as CreateConfigValues["adapterType"],
-          )),
-        ...patch,
-      },
+      [slug]: { ...(prev[slug] ?? { ...defaultCreateValues, adapterType: adapterOverrides[slug] ?? "claude_local" }), ...patch },
     }));
   }
 
